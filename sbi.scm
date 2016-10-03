@@ -24,11 +24,11 @@
 ;; symbol table conatining functions
 (define *function-table* (make-hash))
 (define (function-get key)
-        (hash-ref *function-table* key))
+        (hash-ref *function-table* key #f))
 (define (function-put! key value)
         (hash-set! *function-table* key value))
 
-;; put builtin functions into function table
+;; fill function table
 (for-each
     (lambda (pair)
             (function-put! (car pair) (cadr pair)))
@@ -36,10 +36,13 @@
 
         (div     ,(lambda (x y) (floor (/ x y))))
         (log10   ,(lambda (x) (/ (log x) (log 10.0))))
-        (mod     ,(lambda (x y) (- x (* (div x y) y))))
+        (%       ,(lambda (x y) (- x (* (/ x y) y))))
         (quot    ,(lambda (x y) (truncate (/ x y))))
         (rem     ,(lambda (x y) (- x (* (quot x y) y))))
+        (*       ,*)
+        (/       ,/)
         (+       ,+)
+        (-       ,-)
         (^       ,expt)
         (ceil    ,ceiling)
         (exp     ,exp)
@@ -52,7 +55,7 @@
 ;; symbol table containing variables
 (define *variable-table* (make-hash))
 (define (variable-get key)
-        (hash-ref *variable-table* key))
+        (hash-ref *variable-table* key #f))
 (define (variable-put! key value)
         (hash-set! *variable-table* key value))
 
@@ -70,9 +73,31 @@
 ;; symbol table containing labels
 (define *label-table* (make-hash))
 (define (label-get key)
-        (hash-ref *label-table* key))
+        (hash-ref *label-table* key #f))
 (define (label-put! key value)
         (hash-set! *label-table* key value))
+
+;; symbol table containing relational operators
+(define *relop-table* (make-hash))
+(define (relop-get key)
+        (hash-ref *relop-table* key #f))
+(define (relop-put! key value)
+        (hash-set! *relop-table* key value))
+
+;; put operators into relop table
+(for-each
+    (lambda (pair)
+            (relop-put! (car pair) (cadr pair)))
+    `(
+
+        (>       '>)
+        (<       '>)
+        (>=      '>=)
+        (<=      '<=)
+        (=       '=)
+        (<>      '(lambda (a, b) (not (= a, b))))
+
+     ))
 
 ;; holds this file's name
 (define *run-file*
@@ -99,7 +124,7 @@
     (for-each
         (lambda (line)
             (when (and (> (length line) 1) (symbol? (cadr line)))
-                (label-put! (symbol->string (cadr line)) (car line))))
+                (label-put! (cadr line) (- (car line) 1))))
     programlist))
 
 ;; read the program into a list
@@ -111,6 +136,81 @@
                   (close-input-port inputfile)
                          program))))
 
+;; strip the statement from a given line of the program
+(define (get-statement-from-line line)
+    (case (length line)
+        ((1) '(none))
+        ((2) 
+            (if (symbol? (cadr line))
+                '(none)
+                (cadr line)))
+        ((3) (caddr line))
+        (else (die `("invalid line: " ,@line)))))
+
+;; evaluates an expression to get its result
+(define (eval-expression expr)
+    (cond
+        ((number? expr) expr)
+        ((symbol? expr) (variable-get expr))
+        ((pair? expr)
+            (if (variable-get (car expr))
+                (vector-ref (variable-get (car expr)) (- (eval-expression (cadr expr)) 1))
+                (apply
+                    (function-get (car expr))
+                    (map eval-expression (cdr expr)))))))
+
+;; print a list in the format required for the print statement
+(define (print-list list)
+    (if (equal? list '())
+        (newline)
+        (if (string? (car list))
+            (begin
+                (display (car list))
+                (print-list (cdr list)))
+            (begin
+                (printf " ~s" (eval-expression (car list)))
+                (print-list (cdr list))))))
+
+;; go to the next statement in cur-programlist
+(define (next-statement cur-programlist full-programlist)
+    (if (equal? (cdr cur-programlist) '())
+        (exit 0)
+        (interpret-program (cdr cur-programlist) full-programlist)))
+
+;; interpret the sbir program
+;; (car cur-programlist) is the current statement being processed
+;; full-programlist is always the full list of statements
+;;  - used for goto and if
+(define (interpret-program cur-programlist full-programlist)
+    (let ((statement (get-statement-from-line (car cur-programlist))))
+        (case (symbol->string (car statement))
+            (("none") (next-statement cur-programlist full-programlist))
+            (("dim")
+                (variable-put! (caadr statement) (make-vector (eval-expression (cadadr statement))))
+                (next-statement cur-programlist full-programlist))
+            (("let") 
+                (cond
+                    ((symbol? (cadr statement))
+                        (variable-put! (cadr statement) (eval-expression (caddr statement))))
+                    ((pair? (cadr statement))
+                        (let* ((args (cadr statement))
+                               (array (variable-get (car args))))
+                            (vector-set! array (- (eval-expression (cadr args)) 1) (caddr statement))))
+                    (else (die `("invalid statement: " ,@statement))))
+                (next-statement cur-programlist full-programlist))
+            (("goto")
+                (interpret-program (list-tail full-programlist (label-get (cadr statement))) full-programlist))
+            (("if")
+                (let ((conditional (cadr statement)))
+                    (if ((relop-get (car conditional)) (cadr conditional) (caddr conditional))
+                        (interpret-program (list-tail full-programlist (label-get (caddr statement))) full-programlist)
+                        (next-statement cur-programlist full-programlist))))
+            (("print")
+                (print-list (cdr statement))
+                (next-statement cur-programlist full-programlist))
+            (("input") (printf "input~n"))
+            (else (die `("invalid statement: " ,@statement))))))
+
 ;; main
 (define (main arglist)
     (if (or (null? arglist) (not (null? (cdr arglist))))
@@ -118,6 +218,6 @@
         (let* ((sbprogfile (car arglist))
                (program (readlist-from-inputfile sbprogfile)))
               (build-label-table program)
-              (dump-hash *label-table*))))
+              (interpret-program program program))))
 
 (main (vector->list (current-command-line-arguments)))
