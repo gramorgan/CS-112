@@ -90,12 +90,12 @@
             (relop-put! (car pair) (cadr pair)))
     `(
 
-        (>       '>)
-        (<       '>)
-        (>=      '>=)
-        (<=      '<=)
-        (=       '=)
-        (<>      '(lambda (a, b) (not (= a, b))))
+        (>       ,>)
+        (<       ,>)
+        (>=      ,>=)
+        (<=      ,<=)
+        (=       ,=)
+        (<>      ,(lambda (a b) (not (= a b))))
 
      ))
 
@@ -109,7 +109,7 @@
 
 ;; print the given list of things to stderr and exit
 (define (die list)
-    (for-each (lambda (item) (display item *stderr*)) list)
+    (for-each (lambda (item) (eprintf "~s " item)) list)
     (newline *stderr*)
     (exit 1)
 )
@@ -171,11 +171,11 @@
                 (printf " ~s" (eval-expression (car list)))
                 (print-list (cdr list))))))
 
-;; go to the next statement in cur-programlist
-(define (next-statement cur-programlist full-programlist)
-    (if (equal? (cdr cur-programlist) '())
+;; macro to go to next statement in list
+(define-syntax-rule (next-statement cur-pl full-pl)
+    (if (equal? (cdr cur-pl) '())
         (exit 0)
-        (interpret-program (cdr cur-programlist) full-programlist)))
+        (interpret-program (cdr cur-pl) full-pl)))
 
 ;; interpret the sbir program
 ;; (car cur-programlist) is the current statement being processed
@@ -202,7 +202,7 @@
                 (interpret-program (list-tail full-programlist (label-get (cadr statement))) full-programlist))
             (("if")
                 (let ((conditional (cadr statement)))
-                    (if ((relop-get (car conditional)) (cadr conditional) (caddr conditional))
+                    (if ((relop-get (car conditional)) (eval-expression (cadr conditional)) (eval-expression (caddr conditional)))
                         (interpret-program (list-tail full-programlist (label-get (caddr statement))) full-programlist)
                         (next-statement cur-programlist full-programlist))))
             (("print")
