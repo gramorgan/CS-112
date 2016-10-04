@@ -1,16 +1,4 @@
 #!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/racket/bin/mzscheme -qr
-;; $Id: sbi.scm,v 1.3 2016-09-23 18:23:20-07 - - $
-;;
-;; NAME
-;;    sbi.scm - silly basic interpreter
-;;
-;; SYNOPSIS
-;;    sbi.scm filename.sbir
-;;
-;; DESCRIPTION
-;;    The file mentioned in argv[1] is read and assumed to be an SBIR
-;;    program, which is the executed.  Currently it is only printed.
-;;
 
 (define *stderr* (current-error-port))
 
@@ -35,7 +23,9 @@
     `(
 
         (div     ,(lambda (x y) (floor (/ x y))))
+        (log     ,log)
         (log10   ,(lambda (x) (/ (log x) (log 10.0))))
+        (log2    ,(lambda (x) (/ (log x) (log 2.0))))
         (%       ,(lambda (x y) (- x (* (/ x y) y))))
         (quot    ,(lambda (x y) (truncate (/ x y))))
         (rem     ,(lambda (x y) (- x (* (quot x y) y))))
@@ -47,8 +37,17 @@
         (ceil    ,ceiling)
         (exp     ,exp)
         (floor   ,floor)
+        (round   ,round)
         (log     ,log)
         (sqrt    ,sqrt)
+        (cos     ,cos)
+        (sin     ,cos)
+        (tan     ,tan)
+        (acos    ,acos)
+        (asin    ,asin)
+        (atan    ,atan)
+        (abs     ,abs)
+        (trunc   ,truncate)
 
      ))
 
@@ -109,14 +108,14 @@
 
 ;; print the given list of things to stderr and exit
 (define (die list)
-    (for-each (lambda (item) (eprintf "~s " item)) list)
+    (for-each (lambda (item) (eprintf "~a " item)) list)
     (newline *stderr*)
     (exit 1)
 )
 
 ;; print the program usage and exit
 (define (usage-exit)
-    (die `("Usage: " ,*run-file* " filename"))
+    (die `("Usage:" ,*run-file* "filename"))
 )
 
 ;; builds the label table from the provided program
@@ -145,19 +144,40 @@
                 '(none)
                 (cadr line)))
         ((3) (caddr line))
-        (else (die `("invalid line: " ,@line)))))
+        (else (die `("invalid line:" ,@line)))))
 
 ;; evaluates an expression to get its result
-(define (eval-expression expr)
+(define (evalexp expr)
     (cond
         ((number? expr) expr)
         ((symbol? expr) (variable-get expr))
         ((pair? expr)
             (if (variable-get (car expr))
-                (vector-ref (variable-get (car expr)) (- (eval-expression (cadr expr)) 1))
+                (vector-ref (variable-get (car expr)) (- (evalexp (cadr expr)) 1))
                 (apply
                     (function-get (car expr))
-                    (map eval-expression (cdr expr)))))))
+                    (map evalexp (cdr expr)))))))
+
+(define (handle-input args)
+    (let takeinput ((vars args)
+                    (count -1))
+        (let ((input (read-line)))
+            (unless (eof-object? input)
+                (cond 
+                    ((symbol? (car vars)) 
+                        (variable-put! (car vars) (string->number input)))
+                    ((pair? var)
+                        (vector-set!
+                            (variable-get (caar vars))
+                            (- (evalexp (cadar vars)) 1)
+                            (string->number (input))))
+                    (else (die '("not a variable:" (car vars)))))
+                (unless (equal? (cdr vars) '())
+                    (takeinput
+                        (cdr vars)
+                        (if (= count -1)
+                            1
+                            (+ count 1))))))))
 
 ;; print a list in the format required for the print statement
 (define (print-list list)
@@ -168,7 +188,7 @@
                 (display (car list))
                 (print-list (cdr list)))
             (begin
-                (printf " ~s" (eval-expression (car list)))
+                (printf "~s " (evalexp (car list)))
                 (print-list (cdr list))))))
 
 ;; macro to go to next statement in list
@@ -186,30 +206,32 @@
         (case (symbol->string (car statement))
             (("none") (next-statement cur-programlist full-programlist))
             (("dim")
-                (variable-put! (caadr statement) (make-vector (eval-expression (cadadr statement))))
+                (variable-put! (caadr statement) (make-vector (evalexp (cadadr statement))))
                 (next-statement cur-programlist full-programlist))
             (("let") 
                 (cond
                     ((symbol? (cadr statement))
-                        (variable-put! (cadr statement) (eval-expression (caddr statement))))
+                        (variable-put! (cadr statement) (evalexp (caddr statement))))
                     ((pair? (cadr statement))
                         (let* ((args (cadr statement))
                                (array (variable-get (car args))))
-                            (vector-set! array (- (eval-expression (cadr args)) 1) (caddr statement))))
-                    (else (die `("invalid statement: " ,@statement))))
+                            (vector-set! array (- (evalexp (cadr args)) 1) (caddr statement))))
+                    (else (die `("invalid statement:" ,@statement))))
                 (next-statement cur-programlist full-programlist))
             (("goto")
                 (interpret-program (list-tail full-programlist (label-get (cadr statement))) full-programlist))
             (("if")
                 (let ((conditional (cadr statement)))
-                    (if ((relop-get (car conditional)) (eval-expression (cadr conditional)) (eval-expression (caddr conditional)))
+                    (if ((relop-get (car conditional)) (evalexp (cadr conditional)) (evalexp (caddr conditional)))
                         (interpret-program (list-tail full-programlist (label-get (caddr statement))) full-programlist)
                         (next-statement cur-programlist full-programlist))))
             (("print")
                 (print-list (cdr statement))
                 (next-statement cur-programlist full-programlist))
-            (("input") (printf "input~n"))
-            (else (die `("invalid statement: " ,@statement))))))
+            (("input")
+                (handle-input (cdr statement))
+                (next-statement cur-programlist full-programlist))
+            (else (die `("invalid statement:" ,@statement))))))
 
 ;; main
 (define (main arglist)
