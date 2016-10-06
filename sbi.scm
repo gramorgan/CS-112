@@ -76,28 +76,6 @@
 (define (label-put! key value)
         (hash-set! *label-table* key value))
 
-;; symbol table containing relational operators
-(define *relop-table* (make-hash))
-(define (relop-get key)
-        (hash-ref *relop-table* key #f))
-(define (relop-put! key value)
-        (hash-set! *relop-table* key value))
-
-;; put operators into relop table
-(for-each
-    (lambda (pair)
-            (relop-put! (car pair) (cadr pair)))
-    `(
-
-        (>       ,>)
-        (<       ,>)
-        (>=      ,>=)
-        (<=      ,<=)
-        (=       ,=)
-        (<>      ,(lambda (a b) (not (= a b))))
-
-     ))
-
 ;; holds this file's name
 (define *run-file*
     (let-values
@@ -125,6 +103,10 @@
             (when (and (> (length line) 1) (symbol? (cadr line)))
                 (label-put! (cadr line) (- (car line) 1))))
     programlist))
+
+;; define the 'not equal' operateo
+(define (<> a b)
+    (not (= a b)))
 
 ;; read the program into a list
 (define (readlist-from-inputfile filename)
@@ -158,30 +140,47 @@
                     (function-get (car expr))
                     (map evalexp (cdr expr)))))))
 
+(define (get-num-input)
+    (let ((input (read)))
+        (if (or (number? input) (eof-object? input))
+            input
+            (begin
+                (display "not a number, try again")
+                (newline)
+                (get-num-input)))))
+
 (define (handle-input args)
-    (let takeinput ((vars args)
-                    (count -1))
-        (let ((input (read-line)))
-            (unless (eof-object? input)
-                (cond 
-                    ((symbol? (car vars)) 
-                        (variable-put! (car vars) (string->number input)))
-                    ((pair? var)
-                        (vector-set!
-                            (variable-get (caar vars))
-                            (- (evalexp (cadar vars)) 1)
-                            (string->number (input))))
-                    (else (die '("not a variable:" (car vars)))))
-                (unless (equal? (cdr vars) '())
-                    (takeinput
-                        (cdr vars)
-                        (if (= count -1)
-                            1
-                            (+ count 1))))))))
+    (let take-arg ((args-remaining args)
+                   (inputcount -1))
+        (if (null? args-remaining)
+            inputcount
+            (let ((input (get-num-input)))
+                (if (eof-object? input)
+                    inputcount
+                    (begin
+                        (variable-put!
+                            (car args-remaining)
+                            input)
+                        (take-arg
+                            (cdr args)
+                            (if (= inputcount -1)
+                                1
+                                (+ inputcount 1)))))))))
+
+(define (handle-let args)
+    (cond
+        ((symbol? (car args))
+            (variable-put! (car args) (evalexp (cadr args))))
+        ((pair? (car args))
+            (vector-set!
+                (variable-get (caar args))
+                (- (evalexp (cadar args)) 1)
+                (cadr args)))
+        (else (die `("not a variable" ,(car args))))))
 
 ;; print a list in the format required for the print statement
 (define (print-list list)
-    (if (equal? list '())
+    (if (null? list)
         (newline)
         (if (string? (car list))
             (begin
@@ -193,7 +192,7 @@
 
 ;; macro to go to next statement in list
 (define-syntax-rule (next-statement cur-pl full-pl)
-    (if (equal? (cdr cur-pl) '())
+    (if (null? (cdr cur-pl))
         (exit 0)
         (interpret-program (cdr cur-pl) full-pl)))
 
@@ -209,27 +208,20 @@
                 (variable-put! (caadr statement) (make-vector (evalexp (cadadr statement))))
                 (next-statement cur-programlist full-programlist))
             (("let") 
-                (cond
-                    ((symbol? (cadr statement))
-                        (variable-put! (cadr statement) (evalexp (caddr statement))))
-                    ((pair? (cadr statement))
-                        (let* ((args (cadr statement))
-                               (array (variable-get (car args))))
-                            (vector-set! array (- (evalexp (cadr args)) 1) (caddr statement))))
-                    (else (die `("invalid statement:" ,@statement))))
+                (handle-let (cdr statement))
                 (next-statement cur-programlist full-programlist))
             (("goto")
                 (interpret-program (list-tail full-programlist (label-get (cadr statement))) full-programlist))
             (("if")
                 (let ((conditional (cadr statement)))
-                    (if ((relop-get (car conditional)) (evalexp (cadr conditional)) (evalexp (caddr conditional)))
+                    (if ((eval (car conditional)) (evalexp (cadr conditional)) (evalexp (caddr conditional)))
                         (interpret-program (list-tail full-programlist (label-get (caddr statement))) full-programlist)
                         (next-statement cur-programlist full-programlist))))
             (("print")
                 (print-list (cdr statement))
                 (next-statement cur-programlist full-programlist))
             (("input")
-                (handle-input (cdr statement))
+                (variable-put! 'inputcount (handle-input (cdr statement)))
                 (next-statement cur-programlist full-programlist))
             (else (die `("invalid statement:" ,@statement))))))
 
