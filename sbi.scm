@@ -135,7 +135,9 @@
         ((symbol? expr) (variable-get expr))
         ((pair? expr)
             (if (variable-get (car expr))
-                (vector-ref (variable-get (car expr)) (- (evalexp (cadr expr)) 1))
+                (vector-ref
+                    (variable-get (car expr))
+                    (- (evalexp (cadr expr)) 1))
                 (apply
                     (function-get (car expr))
                     (map evalexp (cdr expr)))))))
@@ -205,23 +207,37 @@
         (case (symbol->string (car statement))
             (("none") (next-statement cur-programlist full-programlist))
             (("dim")
-                (variable-put! (caadr statement) (make-vector (evalexp (cadadr statement))))
+                (variable-put!
+                    (caadr statement)
+                    (make-vector (evalexp (cadadr statement))))
                 (next-statement cur-programlist full-programlist))
             (("let") 
                 (handle-let (cdr statement))
                 (next-statement cur-programlist full-programlist))
             (("goto")
-                (interpret-program (list-tail full-programlist (label-get (cadr statement))) full-programlist))
+                (interpret-program
+                    (list-tail full-programlist
+                        (label-get (cadr statement)))
+                    full-programlist))
             (("if")
                 (let ((conditional (cadr statement)))
-                    (if ((eval (car conditional)) (evalexp (cadr conditional)) (evalexp (caddr conditional)))
-                        (interpret-program (list-tail full-programlist (label-get (caddr statement))) full-programlist)
-                        (next-statement cur-programlist full-programlist))))
+                    (if ((eval (car conditional))
+                            (evalexp (cadr conditional))
+                            (evalexp (caddr conditional)))
+                        (interpret-program
+                            (list-tail full-programlist
+                                (label-get (caddr statement)))
+                            full-programlist)
+                        (next-statement
+                            cur-programlist
+                            full-programlist))))
             (("print")
                 (print-list (cdr statement))
                 (next-statement cur-programlist full-programlist))
             (("input")
-                (variable-put! 'inputcount (handle-input (cdr statement)))
+                (variable-put!
+                    'inputcount
+                    (handle-input (cdr statement)))
                 (next-statement cur-programlist full-programlist))
             (else (die `("invalid statement:" ,@statement))))))
 
