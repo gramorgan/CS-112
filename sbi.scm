@@ -1,5 +1,8 @@
 #!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/racket/bin/mzscheme -qr
 
+;; Ankur Goswami (agoswam3@ucsc.edu)
+;; Morgan Grant (mlgrant@ucsc.edu)
+
 (define *stderr* (current-error-port))
 
 ;; prints the contents of a hash table for debugging
