@@ -134,26 +134,31 @@
 ;; evaluates an expression to get its result
 (define (evalexp expr)
     (cond
-        ((number? expr) expr)
+        ((number? expr) (+ expr 0.0))
         ((symbol? expr) (variable-get expr))
         ((pair? expr)
             (if (variable-get (car expr))
                 (vector-ref
                     (variable-get (car expr))
-                    (- (evalexp (cadr expr)) 1))
+                    (inexact->exact (- (evalexp (cadr expr)) 1)))
                 (apply
                     (function-get (car expr))
                     (map evalexp (cdr expr)))))))
 
+;; gets a single number or eof as input
 (define (get-num-input)
     (let ((input (read)))
-        (if (or (number? input) (eof-object? input))
-            input
-            (begin
+        (cond
+            ((number? input)
+                (+ input 0.0))
+            ((eof-object? input)
+                input)
+            (else
                 (display "not a number, try again")
                 (newline)
                 (get-num-input)))))
 
+;; handles the input statement
 (define (handle-input args)
     (let take-arg ((args-remaining args)
                    (inputcount -1))
@@ -167,7 +172,7 @@
                             (car args-remaining)
                             input)
                         (take-arg
-                            (cdr args)
+                            (cdr args-remaining)
                             (if (= inputcount -1)
                                 1
                                 (+ inputcount 1)))))))))
@@ -179,8 +184,8 @@
         ((pair? (car args))
             (vector-set!
                 (variable-get (caar args))
-                (- (evalexp (cadar args)) 1)
-                (cadr args)))
+                (inexact->exact (- (evalexp (cadar args)) 1))
+                (evalexp (cadr args))))
         (else (die `("not a variable" ,(car args))))))
 
 ;; print a list in the format required for the print statement
@@ -212,7 +217,8 @@
             (("dim")
                 (variable-put!
                     (caadr statement)
-                    (make-vector (evalexp (cadadr statement))))
+                    (make-vector
+                        (inexact->exact (evalexp (cadadr statement)))))
                 (next-statement cur-programlist full-programlist))
             (("let") 
                 (handle-let (cdr statement))
