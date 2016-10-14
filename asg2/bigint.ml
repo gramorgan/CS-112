@@ -45,7 +45,7 @@ module Bigint = struct
                    in  strcat ""
                        ((if sign = Pos then "" else "-") ::
                         (map string_of_int reversed))
-
+
     let rec add' list1 list2 carry = match (list1, list2, carry) with
         | list1, [], 0       -> list1
         | [], list2, 0       -> list2
@@ -60,7 +60,39 @@ module Bigint = struct
         then Bigint (neg1, add' value1 value2 0)
         else zero
 
-    let sub = add
+    let rec sub' list1 list2 carry = match (list1, list2, carry) with
+       | list1, [], 0 -> list1
+       | [], list2, 0 -> list2
+       | list1, [], carry -> sub' list1 [carry] 0
+       | [], list2, carry -> sub' [carry] list2 0
+       | car1::cdr1, car2::cdr2, carry ->
+         Printf.printf "%i %i\n" car1 car2;
+         let diff = car1 - carry - car2
+         in if diff < 0 then
+         diff + 10 :: sub' cdr1 cdr2 1 else
+         diff :: sub' cdr1 cdr2 0
+
+    let gthan (Bigint (neg1, value1)) (Bigint(neg2, value2)) =
+       let str1 = string_of_bigint (Bigint(neg1, value1)) in
+       let str2 = string_of_bigint (Bigint(neg2, value2)) in
+       if (strlen str1) > (strlen str2) then true
+       else if (strlen str1) < (strlen str2) then false
+       else match (reverse value1, reverse value2) with
+       | [] , [] -> true
+       | li1, [] -> true
+       | [], li2 -> false
+       | car1::cdr1, car2::cdr2 ->
+         if car1 > car2 then true
+         else false
+       
+
+    let sub (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+        if neg1 = neg2
+        then (if gthan (Bigint(neg1, value1)) (Bigint(neg2, value2))
+        then Bigint(neg1, sub' value1 value2 0)
+        else Bigint((if neg1 = Pos then Neg else Pos)
+           , sub' value2 value1 0))
+        else zero
 
     let mul = add
 
