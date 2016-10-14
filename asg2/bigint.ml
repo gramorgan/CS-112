@@ -72,26 +72,33 @@ module Bigint = struct
          diff + 10 :: sub' cdr1 cdr2 1 else
          diff :: sub' cdr1 cdr2 0
 
-    let gthan (Bigint (neg1, value1)) (Bigint(neg2, value2)) =
+    let rec cmp' list1 list2 = match (list1, list2) with
+       | [], [] -> 0
+       | list1, [] -> 1
+       | [], list2 -> -1
+       | car1::cdr1, car2::cdr2 ->
+         if car1 > car2 then 1
+         else if car1 < car2 then -1
+         else cmp' cdr1 cdr2
+
+
+    let cmp (Bigint (neg1, value1)) (Bigint(neg2, value2)) =
        let str1 = string_of_bigint (Bigint(neg1, value1)) in
        let str2 = string_of_bigint (Bigint(neg2, value2)) in
-       if (strlen str1) > (strlen str2) then true
-       else if (strlen str1) < (strlen str2) then false
-       else match (reverse value1, reverse value2) with
-       | [] , [] -> true
-       | li1, [] -> true
-       | [], li2 -> false
-       | car1::cdr1, car2::cdr2 ->
-         if car1 > car2 then true
-         else false
+       if (strlen str1) > (strlen str2) then 1
+       else if (strlen str1) < (strlen str2) then -1
+       else cmp' (reverse value1) (reverse value2)
        
 
     let sub (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
         if neg1 = neg2
-        then (if gthan (Bigint(neg1, value1)) (Bigint(neg2, value2))
-        then Bigint(neg1, sub' value1 value2 0)
-        else Bigint((if neg1 = Pos then Neg else Pos)
-           , sub' value2 value1 0))
+        then let cmpret = 
+                  (cmp (Bigint(neg1, value1)) (Bigint(neg2, value2)))in
+        match cmpret with
+        | 1 -> Bigint(neg1, sub' value1 value2 0)
+        | -1 -> Bigint((if neg1 = Pos then Neg else Pos),
+                          sub' value2 value1 0)
+        | _ -> Bigint(Pos, [0])
         else zero
 
     let mul = add
