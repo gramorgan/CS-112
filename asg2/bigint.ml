@@ -124,17 +124,32 @@ module Bigint = struct
             add (Bigint(Pos, sum)) (Bigint(Pos, list1)) in
          mul' list1 nlist2 nsum
 
-    
+        
     let mul (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
         if neg1 = neg2
         then Bigint (Pos, (mul' value1 value2 [0]))
         else Bigint (Neg, (mul' value1 value2 [0]))
 
+    let rec pow' neg1 value1 value2 neg2 product = match value2 with
+       | [] -> Bigint(neg2, product)
+       | [0] -> Bigint(neg1, value1)
+       | [1] -> Bigint(neg2, product)
+       | value2 ->
+         let Bigint(nneg1, nvalue2) =
+            sub (Bigint(Pos, value2)) (Bigint(Pos, [1])) in
+         let Bigint(nneg2, nproduct) =
+            mul (Bigint(neg2, product)) (Bigint(neg1, value1)) in
+         pow' neg1 value1 nvalue2 nneg2 nproduct
+
+
     let div = add
 
     let rem = add
 
-    let pow = add
+    let pow (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+        if neg2 = Pos
+        then pow' neg1 value1 value2 neg1 value1
+        else zero
 
 end
 
