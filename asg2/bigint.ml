@@ -46,6 +46,11 @@ module Bigint = struct
                        ((if sign = Pos then "" else "-") ::
                         (map string_of_int reversed))
 
+    let rec rem_leading_zeros list1 = match (reverse list1) with
+        | [] -> [0]
+        | car1::cdr1 -> if car1 = 0 then rem_leading_zeros (reverse cdr1)
+          else list1
+
     let rec add' list1 list2 carry = match (list1, list2, carry) with
         | list1, [], 0       -> list1
         | [], list2, 0       -> list2
@@ -55,19 +60,19 @@ module Bigint = struct
           let sum = car1 + car2 + carry
           in  sum mod radix :: add' cdr1 cdr2 (sum / radix)
 
-    
-
     let rec sub' list1 list2 carry = match (list1, list2, carry) with
        | list1, [], 0 -> list1
        | [], list2, 0 -> list2
        | list1, [], carry -> sub' list1 [carry] 0
        | [], list2, carry -> sub' [carry] list2 0
        | car1::cdr1, car2::cdr2, carry ->
-         Printf.printf "%i %i\n" car1 car2;
          let diff = car1 - carry - car2
          in if diff < 0 then
          diff + 10 :: sub' cdr1 cdr2 1 else
          diff :: sub' cdr1 cdr2 0
+
+    
+
 
     let rec cmp' list1 list2 = match (list1, list2) with
        | [], [] -> 0
@@ -94,9 +99,9 @@ module Bigint = struct
         then let cmpret = 
                   (cmp (Bigint(neg1, value1)) (Bigint(neg2, value2)))in
         match cmpret with
-        | 1 -> Bigint(neg1, sub' value1 value2 0)
+        | 1 -> Bigint(neg1, rem_leading_zeros (sub' value1 value2 0))
         | -1 -> Bigint((if neg1 = Pos then Neg else Pos),
-                          sub' value2 value1 0)
+                          rem_leading_zeros (sub' value2 value1 0))
         | _ -> Bigint(Pos, [0])
         else if neg1 = Pos 
         then Bigint(Pos, (add' value1 value2 0))
@@ -109,7 +114,21 @@ module Bigint = struct
         then sub (Bigint(neg1, value1)) (Bigint(Pos, value2))
         else sub (Bigint(neg2, value2)) (Bigint(Pos, value1))
 
-    let mul = add
+    let rec mul' list1 list2 sum = match list2 with
+       | [] -> sum
+       | [0] -> sum
+       | list2 -> 
+         let Bigint(neg1, nlist2) = 
+            sub (Bigint(Pos, list2)) (Bigint(Pos, [1])) in
+         let Bigint(neg2, nsum) = 
+            add (Bigint(Pos, sum)) (Bigint(Pos, list1)) in
+         mul' list1 nlist2 nsum
+
+    
+    let mul (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+        if neg1 = neg2
+        then Bigint (Pos, (mul' value1 value2 [0]))
+        else Bigint (Neg, (mul' value1 value2 [0]))
 
     let div = add
 
