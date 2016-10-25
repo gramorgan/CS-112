@@ -71,9 +71,6 @@ module Bigint = struct
          diff + 10 :: sub' cdr1 cdr2 1 else
          diff :: sub' cdr1 cdr2 0
 
-    
-
-
     let rec cmp' list1 list2 = match (list1, list2) with
        | [], [] -> 0
        | list1, [] -> 1
@@ -141,10 +138,24 @@ module Bigint = struct
             mul (Bigint(neg2, product)) (Bigint(neg1, value1)) in
          pow' neg1 value1 nvalue2 nneg2 nproduct
 
+    let rec div' divisor quotient rem =
+        if (cmp (Bigint(Pos, rem)) (Bigint(Pos, divisor))) = -1 then
+            (quotient, rem)
+        else let Bigint(neg1, nrem) = (sub (Bigint(Pos, rem)) (Bigint(Pos, divisor))) in
+        div' divisor (add' quotient [1] 0) nrem
 
-    let div = add
 
-    let rem = add
+    let div (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+         let (quotient, rem) = div' value2 [0] value1 in
+         if neg1 = neg2 then
+            Bigint((if neg1 = Pos then Pos else Neg), quotient)
+         else Bigint(Neg, quotient)
+
+    let rem (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+         let (quotient, rem) = div' value2 [0] value1 in
+         if neg1 = Neg then
+            Bigint(Neg, rem)
+         else Bigint(Pos, rem)
 
     let pow (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
         if neg2 = Pos
