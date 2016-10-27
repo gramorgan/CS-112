@@ -17,7 +17,7 @@ type binop_t = bigint -> bigint -> bigint
 
 let print_number number = printf "%s\n%!" (string_of_bigint number)
 
-let print_stackempty () = printf "stack empty\n%!"
+let print_stackempty () = printf "dc: stack empty\n%!"
 
 let register = Hashtbl.create 10
 
@@ -73,7 +73,7 @@ let toploop (thestack: stack_t) inputchannel =
                  | Operator oper       -> execute thestack oper
                  );
              toploop ()
-        with End_of_file -> printf "End_of_file\n%!";
+        with End_of_file -> printf "";
     in  toploop ()
 
 let readfiles () =

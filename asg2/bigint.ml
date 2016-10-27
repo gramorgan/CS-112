@@ -38,17 +38,24 @@ module Bigint = struct
                      then Bigint (Neg, to_intlist 1)
                      else Bigint (Pos, to_intlist 0)
 
+    (* Tail recursion ftw!*)
+    let rec insert_newlines str sum charcount = match str with
+      | [] -> reverse sum
+      | car::cdr -> if charcount = 69 then
+         insert_newlines cdr ("\\\n"::car::sum) 1
+         else insert_newlines cdr (car::sum) (charcount + 1)
+    
     let string_of_bigint (Bigint (sign, value)) =
         match value with
         | []    -> "0"
         | value -> let reversed = reverse value
-                   in  strcat ""
+                   in  strcat "" (insert_newlines (
                        ((if sign = Pos then "" else "-") ::
-                        (map string_of_int reversed))
+                        (map string_of_int reversed))) [] 0)
 
     let rec rem_leading_zeros list1 = match (reverse list1) with
-        | [] -> [0]
-        | car1::cdr1 -> if car1 = 0 then rem_leading_zeros (reverse cdr1)
+       | [] -> [0]
+       | car1::cdr1 -> if car1 = 0 then rem_leading_zeros (reverse cdr1)
           else list1
 
     let rec add' list1 list2 carry = match (list1, list2, carry) with
@@ -111,22 +118,31 @@ module Bigint = struct
         then sub (Bigint(neg1, value1)) (Bigint(Pos, value2))
         else sub (Bigint(neg2, value2)) (Bigint(Pos, value1))
 
-    let rec mul' list1 list2 sum = match list2 with
-       | [] -> sum
-       | [0] -> sum
-       | list2 -> 
-         let Bigint(neg1, nlist2) = 
-            sub (Bigint(Pos, list2)) (Bigint(Pos, [1])) in
-         let Bigint(neg2, nsum) = 
-            add (Bigint(Pos, sum)) (Bigint(Pos, list1)) in
-         mul' list1 nlist2 nsum
 
-        
+    let rec print_list list = match list with
+       | [] -> ()
+       | car::cdr -> printf "%d\n" car;
+         print_list cdr
+
+    let double number = add' number number 0
+
+    let rec mul' (multiplier, powerof2, multiplicand') =
+       if (cmp (Bigint(Pos, powerof2)) (Bigint(Pos, multiplier))) > 0
+       then multiplier, [0]
+       else let remainder, product =
+             mul' (multiplier, double powerof2, double multiplicand')
+          in 
+          if (cmp (Bigint(Pos, remainder)) (Bigint(Pos, powerof2))) < 0
+              then remainder, product
+              else rem_leading_zeros (sub' remainder powerof2 0), 
+                                     (add' product multiplicand' 0)
+
     let mul (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+        let _, product = mul' (value1, [1], value2) in
         if neg1 = neg2
-        then Bigint (Pos, (mul' value1 value2 [0]))
-        else Bigint (Neg, (mul' value1 value2 [0]))
-
+            then Bigint (Pos, product)
+            else Bigint (Neg, product)
+    
     let rec pow' neg1 value1 value2 neg2 product = match value2 with
        | [] -> Bigint(neg2, product)
        | [0] -> Bigint(neg1, value1)
@@ -138,28 +154,48 @@ module Bigint = struct
             mul (Bigint(neg2, product)) (Bigint(neg1, value1)) in
          pow' neg1 value1 nvalue2 nneg2 nproduct
 
-    let rec div' divisor quotient rem =
-        if (cmp (Bigint(Pos, rem)) (Bigint(Pos, divisor))) = -1 then
-            (quotient, rem)
-        else let Bigint(neg1, nrem) = (sub (Bigint(Pos, rem)) (Bigint(Pos, divisor))) in
-        div' divisor (add' quotient [1] 0) nrem
+     
+     let rec divrem' (dividend, powerof2, divisor') =
+         if (cmp (Bigint(Pos, divisor')) (Bigint(Pos, dividend))) > 0
+         then [0], dividend
+         else let quotient, remainder =
+            divrem' (dividend, double powerof2, double divisor') in  
+            if (cmp (Bigint(Pos, remainder)) (Bigint(Pos, divisor')))< 0
+               then quotient, remainder
+               else add' quotient powerof2 0, 
+                    rem_leading_zeros (sub' remainder divisor' 0)
 
+     let divrem (dividend, divisor') = divrem' (dividend, [1], divisor')
 
-    let div (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
-         let (quotient, rem) = div' value2 [0] value1 in
+     let div (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+         let quotient, _ = divrem (value1, value2) in
          if neg1 = neg2 then
             Bigint((if neg1 = Pos then Pos else Neg), quotient)
          else Bigint(Neg, quotient)
 
-    let rem (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
-         let (quotient, rem) = div' value2 [0] value1 in
+     let rem (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+         let _, rem = divrem (value1, value2) in
          if neg1 = Neg then
             Bigint(Neg, rem)
          else Bigint(Pos, rem)
 
-    let pow (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
+     let even (Bigint(neg1, number)) = let _, rem = divrem(number, [2]) 
+         in (cmp (Bigint(Pos, rem)) zero) = 0
+
+     let rec pow' (base: bigint) (expt: bigint) (result: bigint) = 
+         match expt with
+            | Bigint(_, [0])      -> result
+            | expt when even expt -> 
+                  pow' (mul (base) (base)) 
+                       (div (expt) (Bigint(Pos, [2]))) (result)
+            | expt                -> 
+                  pow' (base) (sub expt (Bigint(Pos, [1]))) 
+                       (mul (base) (result))
+
+     let pow (Bigint (neg1, value1)) (Bigint (neg2, value2)) =
         if neg2 = Pos
-        then pow' neg1 value1 value2 neg1 value1
+        then pow' (Bigint(neg1, value1)) (Bigint(neg2, value2)) 
+                  (Bigint(Pos, [1]))
         else zero
 
 end

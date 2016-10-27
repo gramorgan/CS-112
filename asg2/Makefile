@@ -16,13 +16,13 @@ LISTING   = Listing.ps
 all : ${CAMLRUN}
 
 ${CAMLRUN} : ${OBJCMO} ${OBJCMI}
-	ocamlc ${OBJCMO} -o ${CAMLRUN}
+	ocamlc ${OBJCMO} -g -o ${CAMLRUN}
 
 %.cmi : %.mli
-	ocamlc -c $<
+	ocamlc -g -c $<
 
 %.cmo : %.ml
-	ocamlc -c $<
+	ocamlc -g -c $<
 
 %.ml : %.mll
 	ocamllex $<
