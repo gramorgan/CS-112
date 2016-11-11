@@ -1,5 +1,7 @@
 #!/usr/bin/gst -f
 "#!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/smalltalk/bin/gst -f"
+"Written by Morgan Grant  (mlgrant@ucsc.edu)"
+"       and Ankur Goswami (agoswam3 @ucsc.edu)"
 
 FileStream extend [
    |bitIndex currentChar|
@@ -26,13 +28,20 @@ FileStream extend [
    ]
 ]
 
-Character extend [
+SmallInteger extend [
    isPrint [
-      ^ (Character space <= self) & (self <= $~)
+      ^ (Character space value <= self) & (self <= $~ value)
    ]
-   visible [
-      self isPrint ifTrue: [^ '$', self asString]
-                   ifFalse: [^ self asInteger printStringRadix: 8]
+   asCharFmt [
+      self isPrint ifTrue: [^ ' $', (Character value: self) asString]
+                   ifFalse: [^ self asFixedWidth: 3]
+   ]
+   asFixedWidth: width [
+      | return |
+      self asString size >= width ifTrue: [^ self asString].
+      return := ''.
+      1 to: width - (self asString size) do: [:i| return := return, ' '].
+      ^ return, self asString.
    ]
 ]
 
@@ -149,14 +158,14 @@ Leaf subclass: Tree [
 
 ]
 
-Object subclass: DecodeTree [
-   | root |
+Object subclass: Encoder [
+   | root freqtable encodestrings |
 
-   DecodeTree class >> new [
+   Encoder class >> new [
       self shouldNotImplement
    ]
 
-   DecodeTree class >> new: inFile [
+   Encoder class >> new: inFile [
       | result |
       result := super new.
       result init: inFile.
@@ -164,14 +173,17 @@ Object subclass: DecodeTree [
    ]
 
    init: inFile [
-      | freqtable priority |
+      "builds freqtable,  decode tree and encoding strings set"
+      | priority |
 
-      freqtable := ZeroArray new: 256.
+      freqtable := ZeroArray new: 257.
       [inFile atEnd not] whileTrue: [
          | ordchar |
          ordchar := inFile next asInteger.
          freqtable incr: ordchar.
       ].
+      inFile resetStream.
+      freqtable incr: 256.
 
       priority := SortedCollection new.
       freqtable keysAndValuesDo: [:char :freq|
@@ -186,18 +198,19 @@ Object subclass: DecodeTree [
          right := priority removeFirst.
 
          newTree := Tree new: (left char) count: (left count + right count) left: left right: right.
-         priority add newTree.
+         priority add: newTree.
       ].
-      self setRoot: priority first.
+      root := priority first.
 
-      stdout << self root << nl.
+      encodestrings := ZeroArray new: 257.
+      root inorder: [:char :string|
+         encodestrings at: char put: string.
+      ] prefix: ''.
    ]
 
-   setRoot: newRoot [
-      root := newRoot.
-   ]
-
-   root [^ root]
+   root [^root]
+   freqtable [^freqtable]
+   encodestrings [^encodestrings]
 ]
 
 nl := Character nl.
@@ -223,16 +236,25 @@ Smalltalk arguments size >= 3 ifTrue: [
 "apparently smalltalk has no switch statement"
 opt = '-d' ifTrue: [
    "if debug mode is chosen"
-   stdout << 'd' << nl.
+   stdout << 'ya chose debug mode! nice!' << nl.
 ] ifFalse: [
 opt = '-t' ifTrue: [
    "if tree mode is chosen"
    
-   DecodeTree new: infile.
+   encode := Encoder new: infile.
+   encode encodestrings keysAndValuesDo: [:char :string|
+      string isNil not ifTrue: [
+         stdout << char asCharFmt << ' '
+                << ((encode freqtable at: char) asFixedWidth: 7) << ' '
+                << string << nl.
+      ]
+   ].
+
 ] ifFalse: [
 opt = '-c' ifTrue: [
    "if compress mode is chosen"
-   stdout << 'c' << nl.
+
+   encode := Encoder new: infile.
 ] ifFalse: [
 opt = '-u' ifTrue: [
    "if uncompress mode is chosen"
