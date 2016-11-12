@@ -45,6 +45,48 @@ SmallInteger extend [
    ]
 ]
 
+Object subclass: OutBits [
+   |bitIndex currentByte myStream|
+   OutBits class >> new [
+      self shouldNotImplement.
+   ]
+   OutBits class >> new: fileStream [
+      |result|
+      result := super new.
+      result init: fileStream.
+      ^result
+   ]
+   clearByte [
+      bitIndex := 8.
+      currentByte := 0.
+   ]
+   init: fileStream [
+      myStream := fileStream.
+      self clearByte.
+   ]
+   flushByte [
+      bitIndex = 8 ifFalse: [
+         myStream nextPutByte: currentByte.
+         self clearByte.
+      ]
+   ]
+   writeBit: bit [
+      currentByte := currentByte bitAt: bitIndex put: bit.
+      bitIndex := bitIndex - 1.
+      bitIndex = 0 ifTrue: [self flushByte].
+   ]
+
+   writeBitString: string [
+      string do: [:char|
+         char = $0 ifTrue: [
+            self writeBit: 0.
+         ] ifFalse: [
+            self writeBit: 1.
+         ]
+      ]
+   ]
+]
+
 Object subclass: ZeroArray [
    |theArray|
 
@@ -126,6 +168,15 @@ Object subclass: Leaf [
       visitor value: char value: string.
    ]
 
+   postorder: outwriter [
+      outwriter writeBit: 0.
+      self char = 256 ifTrue: [outwriter writeBit: 1].
+      self char = 0 ifTrue: [outwriter writeBit: 0].
+      8 to: 1 by: -1 do: [:i|
+         outwriter writeBit: (self char bitAt: i)
+      ].
+   ]
+
 ]
 
 Leaf subclass: Tree [
@@ -156,6 +207,12 @@ Leaf subclass: Tree [
       right inorder: visitor prefix: string, '1'.
    ]
 
+   postorder: outwriter [
+      left postorder: outwriter.
+      right postorder: outwriter.
+      outwriter writeBit: 1.
+   ]
+
 ]
 
 Object subclass: Encoder [
@@ -166,7 +223,7 @@ Object subclass: Encoder [
    ]
 
    Encoder class >> new: inFile [
-      | result |
+      |result|
       result := super new.
       result init: inFile.
       ^ result.
@@ -174,11 +231,11 @@ Object subclass: Encoder [
 
    init: inFile [
       "builds freqtable,  decode tree and encoding strings set"
-      | priority |
+      |priority|
 
       freqtable := ZeroArray new: 257.
       [inFile atEnd not] whileTrue: [
-         | ordchar |
+         |ordchar|
          ordchar := inFile next asInteger.
          freqtable incr: ordchar.
       ].
@@ -193,7 +250,7 @@ Object subclass: Encoder [
       ].
       
       [priority size > 1] whileTrue: [
-         | left right newTree |
+         |left right newTree|
          left := priority removeFirst.
          right := priority removeFirst.
 
@@ -208,11 +265,26 @@ Object subclass: Encoder [
       ] prefix: ''.
    ]
 
+   writeEncodeTree: outwriter [
+      root postorder: outwriter.
+   ]
+
+   writeEncodedFile: outwriter file: inFile [
+      [inFile atEnd not] whileTrue: [
+         |ordchar encodestring|
+         ordchar := inFile next asInteger.
+         encodestring := self encodestrings at: ordchar.
+         outwriter writeBitString: encodestring.
+      ].
+      outwriter writeBitString: (self encodestrings at: 256).
+   ]
+
    root [^root]
    freqtable [^freqtable]
    encodestrings [^encodestrings]
 ]
 
+"begin actual program"
 nl := Character nl.
 
 Smalltalk arguments size < 2 ifTrue: [
@@ -255,6 +327,11 @@ opt = '-c' ifTrue: [
    "if compress mode is chosen"
 
    encode := Encoder new: infile.
+   outwriter := OutBits new: outfile.
+   encode writeEncodeTree: outwriter.
+   encode writeEncodedFile: outwriter file: infile.
+   outwriter flushByte.
+
 ] ifFalse: [
 opt = '-u' ifTrue: [
    "if uncompress mode is chosen"
