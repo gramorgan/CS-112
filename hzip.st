@@ -1,4 +1,5 @@
-#!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/smalltalk/bin/gst -f
+#!/usr/bin/gst -f
+"#!/afs/cats.ucsc.edu/courses/cmps112-wm/usr/smalltalk/bin/gst -f"
 "Written by Morgan Grant  (mlgrant@ucsc.edu)"
 "       and Ankur Goswami (agoswam3 @ucsc.edu)"
 
@@ -14,18 +15,11 @@ FileStream extend [
       ].
       bit := currentChar value bitAt: bitIndex.
       bitIndex := bitIndex - 1.
-      ^bit.
+      ^ bit
    ]
 
-   readByte [
-      |result|
-      result := 0.
-      8 to: 1 by: -1 do: [:i|
-         |bit|
-         bit := self nextBit.
-         result := result bitAt: i put: bit.
-      ].
-      ^ result.
+   atBitEnd [
+      ^ (bitIndex isNil | (bitIndex = 0)) & self atEnd
    ]
 
    resetStream [
@@ -46,41 +40,9 @@ SmallInteger extend [
       | return |
       self asString size >= width ifTrue: [^ self asString].
       return := ''.
-      1 to: width - (self asString size) do: [:i| 
-         return := return, ' '.
-      ].
+      1 to: width - (self asString size) do: [:i| return := return, ' '].
       ^ return, self asString.
    ]
-]
-
-Object subclass: Stack [
-   |theArray size|
-
-   Stack class >> new [
-      |result|
-      result := super new.
-      result init: 257.
-      ^ result.
-   ]
-
-   init: n [
-      theArray := Array new: n.
-      size := 0.
-   ]
-
-   push: item [
-      size := self size + 1.
-      theArray at: size put: item.
-   ]
-
-   pop [
-      |item|
-      item := theArray at: size.
-      size := self size - 1.
-      ^ item.
-   ]
-
-   size [^size]
 ]
 
 Object subclass: OutBits [
@@ -208,11 +170,11 @@ Object subclass: Leaf [
 
    postorder: outwriter [
       outwriter writeBit: 0.
+      self char = 256 ifTrue: [outwriter writeBit: 1].
+      self char = 0 ifTrue: [outwriter writeBit: 0].
       8 to: 1 by: -1 do: [:i|
          outwriter writeBit: (self char bitAt: i)
       ].
-      self char = 256 ifTrue: [outwriter writeBit: 1].
-      self char = 0 ifTrue: [outwriter writeBit: 0].
    ]
 
 ]
@@ -251,8 +213,6 @@ Leaf subclass: Tree [
       outwriter writeBit: 1.
    ]
 
-   left [^left]
-   right [^right]
 ]
 
 Object subclass: Encoder [
@@ -294,9 +254,7 @@ Object subclass: Encoder [
          left := priority removeFirst.
          right := priority removeFirst.
 
-         newTree := Tree new: (left char) 
-                         count: (left count + right count) 
-                         left: left right: right.
+         newTree := Tree new: (left char) count: (left count + right count) left: left right: right.
          priority add: newTree.
       ].
       root := priority first.
@@ -309,7 +267,6 @@ Object subclass: Encoder [
 
    writeEncodeTree: outwriter [
       root postorder: outwriter.
-      outwriter  writeBit: 1.
    ]
 
    writeEncodedFile: outwriter file: inFile [
@@ -327,84 +284,6 @@ Object subclass: Encoder [
    encodestrings [^encodestrings]
 ]
 
-Object subclass: Decoder [
-   |sourcefile root|
-
-   Decoder class >> new [
-      self shouldNotImplement
-   ]
-
-   Decoder class >> new: infile [
-      |result|
-      result := super new.
-      result init: infile.
-      ^ result.
-   ]
-
-   init: infile [
-      |stack done|
-      sourcefile := infile.
-      stack := Stack new.
-
-      done := false.
-      [done not] whileTrue: [
-         |bit|
-         bit := infile nextBit.
-
-         bit = 0 ifTrue: [
-            |byte leaf|
-            byte := infile readByte.
-            byte = 0 ifTrue: [
-               infile nextBit = 1 ifTrue: [byte := 256].
-            ].
-            leaf := Leaf new: byte count: 0.
-            stack push: leaf.
-         ] ifFalse: [
-            stack size = 1 ifTrue: [
-               done := true.
-            ] ifFalse: [
-               |left right inner|
-               right := stack pop.
-               left := stack pop.
-               inner := Tree new: left char count: 0 left: left 
-                                                     right: right.
-               stack push: inner.
-            ].
-         ].
-      ].
-      root := stack pop.
-   ]
-
-   writeDecodedFile: outfile [
-      |done curnode|
-
-      done := false.
-      curnode := self root.
-      [done not] whileTrue: [
-         |bit|
-         bit := self sourcefile nextBit.
-         
-         bit = 0 ifTrue: [
-            curnode := curnode left.
-         ] ifFalse: [
-            curnode := curnode right.
-         ].
-
-         (curnode isMemberOf: Leaf) ifTrue: [
-            curnode char = 256 ifTrue: [
-               done := true.
-            ] ifFalse: [
-               outfile nextPutByte: curnode char.
-            ].
-            curnode := self root.
-         ].
-      ]
-   ]
-
-   sourcefile [^sourcefile]
-   root [^root]
-]
-
 "begin actual program"
 nl := Character nl.
 
@@ -413,7 +292,7 @@ Smalltalk arguments size < 2 ifTrue: [
    ObjectMemory quit: 1.
 ].
 
-|opt infile outfile|
+| opt infile outfile |
 
 opt := Smalltalk arguments at: 1.
 infile := FileStream open: (Smalltalk arguments at: 2)
@@ -428,10 +307,8 @@ Smalltalk arguments size >= 3 ifTrue: [
 
 "apparently smalltalk has no switch statement"
 opt = '-d' ifTrue: [
-
    "if debug mode is chosen"
    stdout << 'ya chose debug mode! nice!' << nl.
-
 ] ifFalse: [
 opt = '-t' ifTrue: [
    "if tree mode is chosen"
@@ -458,17 +335,9 @@ opt = '-c' ifTrue: [
 ] ifFalse: [
 opt = '-u' ifTrue: [
    "if uncompress mode is chosen"
-
-   decode := Decoder new: infile.
-   decode writeDecodedFile: outfile.
-
+   stdout << 'u' << nl.
 ] ifFalse: [
    "invalid mode given"
    stderr << 'invalid mode: ' << opt << nl.
+   ObjectMemory quit: 1.
 ]]]].
-
-
-infile close.
-(outfile = stdout) not ifTrue: [
-   outfile close.
-].
