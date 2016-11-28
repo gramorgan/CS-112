@@ -1,9 +1,0 @@
-application: not a procedure;
- expected a procedure that can be applied to arguments
-  given: #<eof>
-  arguments...: [none]
-  context...:
-   /afs/cats.ucsc.edu/users/x/mlgrant/private/cmps112/asg1/.score/./sbi.scm:161:4: take-arg
-   /afs/cats.ucsc.edu/users/x/mlgrant/private/cmps112/asg1/.score/./sbi.scm:211:0: interpret-program
-Quadratic Equation solver.
-Input a, b, c
