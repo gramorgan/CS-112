@@ -4,9 +4,6 @@
  * Morgan Grant (mlgrant@ucsc.edu)
  */
 
-:- initialization(main).
-
-
 /* Degrees, minutes to radians */
 
 
@@ -39,6 +36,5 @@ haversine_radians( Lat1, Lon1, Lat2, Lon2, Distance ) :-
    Distance is Dist * 3961.
 
 main :-
-   [database],
    get_to(lax,sjc),
    halt.
