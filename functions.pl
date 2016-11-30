@@ -23,29 +23,66 @@ haversine_degmin( Lat1, Lon1, Lat2, Lon2, Distance ) :-
    haversine_radians(Lat1_rad, Lon1_rad, Lat2_rad, Lon2_rad, Distance).
 
 fly( From, To ) :-
-   flight( From, To, Time),
-   disp_flight( From, To, Time).
+   fly_recur( From, To, time(0, 0), Flight_list ),
+   print_flight_list( Flight_list ).
 
-fly( From, To) :-
-   flight( From, Stop, Time),
-   fly( Stop, To ),
-   disp_flight( From, Stop, Time ).
+fly_recur( From, To, Time, Flight_list ) :-
+   gt_time( time(24, 0), Time ),
+   flight( From, To, Depart_time),
+   gt_time( Depart_time, Time ),
+   arrive_time( To, From, Flight_length ),
+   add_time( Depart_time, Flight_length, Landing_time ),
+   Flight_list = [ flight_data( From, To, Depart_time, Landing_time ) ].
 
-disp_flight( From, To, Time ) :-
+fly_recur( From, To, Time, Flight_list ) :-
+   gt_time( time(24, 0), Time),
+   flight( From, Stop, Depart_time),
+   gt_time( Depart_time, Time ),
+   arrive_time( To, From, Flight_length ),
+   add_time( Depart_time, Flight_length, Landing_time ),
+   add_time( Landing_time, time(0, 30), Next_depart_time ),
+   fly_recur( Stop, To, Next_depart_time, Recur_list ),
+   Fd = flight_data( From, To, Depart_time, Landing_time ),
+   append([Fd], Recur_list, Flight_list ).
+
+print_flight_list( [] ).
+
+print_flight_list( [First|Rest] ) :-
+   flight_data( From, To, Depart_time, Arrive_time ) = First,
+   disp_flight( From, To, Depart_time, Arrive_time ),
+   print_flight_list( Rest ).
+
+disp_flight( From, To, time(D_hr, D_min), time(A_hr, A_min) ) :-
    airport( From, Fname, _, _),
+   airport( To, Tname, _, _),
    to_upper( From, Fcode ),
-   time(Hr, Min) is Time,
-   format( 'depart ~a ~a ~d:~d~n', [Fcode, Fname, Hr, Min]).
+   to_upper( To, Tcode ),
+   format( 'depart ~a ~a ~d:~d~n', [Fcode, Fname, D_hr, D_min]),
+   format( 'arrive ~a ~a ~d:~d~n', [Tcode, Tname, A_hr, A_min]).
 
 arrive_time( To, From, Time ) :-
    airport(To, _, To_lat, To_lon),
    airport(From, _, From_lat, From_lon),
    haversine_degmin( From_lat, From_lon, To_lat, To_lon, Distance ),
-   Total_mins is Distance * 60 / 500,
-   display(Total_mins), nl,
-   Hrs is truncate(Total_mins / 60.0),
-   Mins is truncate(Total_mins mod 60.0),
-   format( '~d ~d~n', [Hrs, Mins] ).
+   Hrs is truncate( Distance / 500 ),
+   Mins is truncate( Distance * 60 / 500 ) mod 60,
+   Time = time( Hrs, Mins ).
+
+gt_time( time( H1, M1 ), time( H2, M2 ) ) :-
+   H1 >= H2,
+  (H1 =:= H2 ->
+      M1 > M2 ; true).
+
+add_time( time( H1, M1 ), time( H2, M2 ), Result ) :-
+   HI is H1 + H2,
+   MI is M1 + M2,
+  (MI >= 60 ->
+      HR is HI + 1,
+      MR is MI mod 60
+      ;
+      HR is HI,
+      MR is MI),
+   Result = time(HR, MR).
 
 to_upper(atl, 'ATL').
 to_upper(bos, 'BOS').
