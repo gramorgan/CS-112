@@ -42,7 +42,7 @@ fly_recur( From, To, Time, Flight_list ) :-
    add_time( Depart_time, Flight_length, Landing_time ),
    add_time( Landing_time, time(0, 30), Next_depart_time ),
    fly_recur( Stop, To, Next_depart_time, Recur_list ),
-   Fd = flight_data( From, To, Depart_time, Landing_time ),
+   Fd = flight_data( From, Stop, Depart_time, Landing_time ),
    append([Fd], Recur_list, Flight_list ).
 
 print_flight_list( [] ).
