@@ -33,6 +33,7 @@ fly( From, To ) :-
       format('airport not found: ~a~n', [To]),
       fail; true),
    fly_recur( From, To, time(0, 0), Flight_list ),
+   nl,
    print_flight_list( Flight_list ).
 
 fly_recur( From, To, Time, Flight_list ) :-
