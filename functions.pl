@@ -23,6 +23,15 @@ haversine_degmin( Lat1, Lon1, Lat2, Lon2, Distance ) :-
    haversine_radians(Lat1_rad, Lon1_rad, Lat2_rad, Lon2_rad, Distance).
 
 fly( From, To ) :-
+  (From = To ->
+      display('no zero-flight queries allowed'), nl,
+      fail; true),
+  (\+ airport( From, _, _, _ ) ->
+      format('airport not found: ~a~n', [From]),
+      fail; true),
+  (\+ airport( To, _, _, _ ) ->
+      format('airport not found: ~a~n', [To]),
+      fail; true),
    fly_recur( From, To, time(0, 0), Flight_list ),
    print_flight_list( Flight_list ).
 
@@ -38,7 +47,7 @@ fly_recur( From, To, Time, Flight_list ) :-
    gt_time( time(24, 0), Time),
    flight( From, Stop, Depart_time),
    gt_time( Depart_time, Time ),
-   arrive_time( To, From, Flight_length ),
+   arrive_time( Stop, From, Flight_length ),
    add_time( Depart_time, Flight_length, Landing_time ),
    add_time( Landing_time, time(0, 30), Next_depart_time ),
    fly_recur( Stop, To, Next_depart_time, Recur_list ),
